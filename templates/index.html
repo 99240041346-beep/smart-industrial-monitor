@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Smart Industrial Sensor Monitor</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:#eef3f8;color:#172033}
+header{background:#0f172a;color:#fff;padding:22px 5%;display:flex;justify-content:space-between;align-items:center}
+h1{margin:0;font-size:25px}.sub{opacity:.7;font-size:13px;margin-top:5px}.badge{padding:10px 17px;border-radius:30px;background:#64748b;font-weight:800}
+main{max-width:1250px;margin:25px auto;padding:0 18px}.section{font-size:19px;font-weight:800;margin:22px 0 11px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.card{background:#fff;border-radius:17px;padding:20px;box-shadow:0 7px 24px #0000000c}
+.label{font-size:13px;color:#667085}.value{font-size:31px;font-weight:800;margin-top:7px}.unit{color:#667085}
+.statusbox{display:flex;align-items:center;justify-content:space-between}.bigstatus{font-size:25px;font-weight:900}
+.alert{margin-top:10px;padding:14px;border-radius:12px;background:#f8fafc}.critical{background:#fee2e2;color:#991b1b}.warning{background:#fff7ed;color:#9a3412}.normal{background:#dcfce7;color:#166534}
+input{padding:13px;border:1px solid #cbd5e1;border-radius:10px;width:100%;font-size:15px}
+button{margin-top:10px;padding:12px 17px;border:0;border-radius:10px;background:#2563eb;color:white;font-weight:800;cursor:pointer}
+small{color:#667085}table{width:100%;border-collapse:collapse}td{padding:10px;border-bottom:1px solid #edf0f3}
+@media(max-width:800px){.grid{grid-template-columns:1fr 1fr}}@media(max-width:520px){.grid{grid-template-columns:1fr}header{gap:10px;align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<header>
+<div><h1>SMART INDUSTRIAL SENSOR MONITOR</h1><div class="sub">ESP8266 • Wireless IoT • Web Dashboard • Blynk-ready</div></div>
+<div id="badge" class="badge">OFFLINE</div>
+</header>
+<main>
+<div class="section">Live Industrial Data</div>
+<div class="grid">
+<div class="card"><div class="label">TEMPERATURE</div><div class="value"><span id="temperature">0</span> <span class="unit">°C</span></div></div>
+<div class="card"><div class="label">HUMIDITY</div><div class="value"><span id="humidity">0</span> <span class="unit">%</span></div></div>
+<div class="card"><div class="label">VIBRATION</div><div class="value"><span id="vibration">0</span> <span class="unit">g</span></div></div>
+<div class="card"><div class="label">CURRENT</div><div class="value"><span id="current">0</span> <span class="unit">A</span></div></div>
+<div class="card"><div class="label">VOLTAGE</div><div class="value"><span id="voltage">0</span> <span class="unit">V</span></div></div>
+<div class="card"><div class="label">GAS / AIR QUALITY</div><div class="value"><span id="gas">0</span> <span class="unit">units</span></div></div>
+</div>
+
+<div class="section">Machine Status</div>
+<div class="card statusbox"><div><small>Current condition</small><div id="machine" class="bigstatus">WAITING FOR NODEMCU</div></div><div><small>Last update</small><div id="time">--</div></div></div>
+
+<div class="section">Website Notifications</div>
+<div class="card">
+<div id="alert" class="alert">No sensor data received yet.</div>
+<button onclick="enableNotifications()">Enable Browser Notifications</button>
+</div>
+
+<div class="section">SMS Recipient</div>
+<div class="card">
+<input id="phone" placeholder="+91XXXXXXXXXX" type="tel">
+<button onclick="saveNumber()">Save Number</button>
+<p><small>This field stores the recipient in this browser. Real SMS sending should be connected to an SMS provider such as Twilio on the server; do not place API credentials in the browser.</small></p>
+<div id="smsInfo" class="alert">SMS recipient not configured.</div>
+</div>
+
+<div class="section">NodeMCU API</div>
+<div class="card">
+<table>
+<tr><td>POST endpoint</td><td><b>/api/sensor-data</b></td></tr>
+<tr><td>GET endpoint</td><td><b>/api/sensors</b></td></tr>
+<tr><td>Health check</td><td><b>/health</b></td></tr>
+</table>
+</div>
+</main>
+<script>
+const phone=document.getElementById('phone');
+phone.value=localStorage.getItem('industrialPhone')||'';
+let previous='';
+function saveNumber(){localStorage.setItem('industrialPhone',phone.value.trim());document.getElementById('smsInfo').textContent='Saved recipient: '+phone.value.trim();}
+function enableNotifications(){if('Notification' in window)Notification.requestPermission();}
+function notify(msg){if('Notification' in window && Notification.permission==='granted')new Notification('Industrial Alert',{body:msg});}
+async function refresh(){
+ try{
+  const d=await (await fetch('/api/sensors')).json();
+  ['temperature','humidity','vibration','current','voltage','gas'].forEach(k=>document.getElementById(k).textContent=d[k]);
+  document.getElementById('machine').textContent=d.machine;
+  document.getElementById('time').textContent=d.time;
+  const b=document.getElementById('badge'),a=document.getElementById('alert');
+  b.textContent=d.status;
+  b.style.background=d.status==='CRITICAL'?'#dc2626':d.status==='WARNING'?'#d97706':d.status==='NORMAL'?'#16a34a':'#64748b';
+  const msg=d.alerts.length?d.alerts.join(' • '):'All monitored parameters are normal.';
+  a.textContent=msg;a.className='alert '+(d.status==='CRITICAL'?'critical':d.status==='WARNING'?'warning':'normal');
+  const key=d.status+'|'+msg;
+  if(d.alerts.length && key!==previous){previous=key;notify(msg);}
+ }catch(e){}
+}
+refresh();setInterval(refresh,1500);
+</script>
+</body>
+</html>
